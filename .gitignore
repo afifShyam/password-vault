@@ -1,0 +1,59 @@
+# -------------------------------
+# Flutter/Dart/Pub Related
+# -------------------------------
+.dart_tool/
+.packages
+.pub/
+.pub-cache/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# Flutter iOS build
+**/ios/Flutter/.last_build_id
+
+# API documentation (generated)
+**/doc/api/
+
+# Obfuscation/Symbolication
+app.*.map.json
+app.*.symbols
+
+# -------------------------------
+# Android Related
+# -------------------------------
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# -------------------------------
+# IDE Related
+# -------------------------------
+
+# Android Studio / IntelliJ
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code
+# Uncomment this if you want to ignore VS Code settings
+#.vscode/
+
+# -------------------------------
+# OS & Misc Files
+# -------------------------------
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.history
+.svn/
+.atom/
+.build/
+.buildlog/
+migrate_working_dir/
+
+# Swift Package Manager
+.swiftpm/

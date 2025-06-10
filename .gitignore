@@ -8,6 +8,8 @@
 build/
 .flutter-plugins
 .flutter-plugins-dependencies
+.gitignore
+.metadata
 
 # Flutter iOS build
 **/ios/Flutter/.last_build_id

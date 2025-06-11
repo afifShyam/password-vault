@@ -1,4 +1,3 @@
-import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pass_vault/viewmodels/index.dart';
@@ -170,6 +169,7 @@ class _CustomPinEntryScreenState extends State<CustomPinEntryScreen> {
                   MaterialPageRoute(builder: (_) => const PinSetupScreen()),
                 );
               } else {
+                if (!context.mounted) return;
                 showDialog(
                   context: context,
                   builder:

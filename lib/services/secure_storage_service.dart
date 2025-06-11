@@ -3,6 +3,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class SecureStorageService {
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
+  static const String _pinKey = 'user_pin';
+  static const String _emailKey = 'saved_emails';
+
+  // Password storage
   Future<void> savePassword({required String key, required String value}) async {
     await _storage.write(key: key, value: value);
   }
@@ -23,17 +27,37 @@ class SecureStorageService {
     return await _storage.readAll();
   }
 
+  // Email storage
   Future<void> saveEmail(String email) async {
     final emails = await getEmails();
     if (!emails.contains(email)) {
       final updated = [...emails, email];
-      await _storage.write(key: 'saved_emails', value: updated.join(','));
+      await _storage.write(key: _emailKey, value: updated.join(','));
     }
   }
 
   Future<List<String>> getEmails() async {
-    final csv = await _storage.read(key: 'saved_emails');
+    final csv = await _storage.read(key: _emailKey);
     if (csv == null || csv.trim().isEmpty) return [];
     return csv.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+  }
+
+  // PIN storage
+  Future<void> setPin(String pin) async {
+    await _storage.write(key: _pinKey, value: pin);
+  }
+
+  Future<bool> verifyPin(String inputPin) async {
+    final storedPin = await _storage.read(key: _pinKey);
+    return storedPin != null && storedPin == inputPin;
+  }
+
+  Future<bool> isPinSet() async {
+    final storedPin = await _storage.read(key: _pinKey);
+    return storedPin != null;
+  }
+
+  Future<void> clearPin() async {
+    await _storage.delete(key: _pinKey);
   }
 }

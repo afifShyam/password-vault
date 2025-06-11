@@ -1,3 +1,4 @@
+import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pass_vault/viewmodels/index.dart';
@@ -24,25 +25,26 @@ class _CustomPinEntryScreenState extends State<CustomPinEntryScreen> {
     _controller.addListener(() async {
       _pinNotifier.value = _controller.text;
 
-      // Clear error when user starts typing
-      if (_errorNotifier.value != null) {
+      // Only clear error if user starts typing something
+      if (_controller.text.isNotEmpty && _errorNotifier.value != null) {
         _errorNotifier.value = null;
       }
 
       if (_pinNotifier.value.length == 6) {
-        _focusNode.unfocus();
         final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
         final success = await authViewModel.authenticateWithPin(_pinNotifier.value);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (success && context.mounted) {
-            Navigator.pop(context, true);
-          } else {
-            if (context.mounted) {
-              _errorNotifier.value = 'Incorrect PIN. Please try again.';
-              _controller.clear();
-            }
-          }
-        });
+
+        // Ensure we're still in the widget tree
+        if (!mounted) return;
+
+        if (success) {
+          Navigator.pop(context, true);
+        } else {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _errorNotifier.value = 'Incorrect PIN. Please try again.';
+            _controller.clear();
+          });
+        }
       }
     });
   }
@@ -78,22 +80,22 @@ class _CustomPinEntryScreenState extends State<CustomPinEntryScreen> {
           color: isNext ? Colors.white : Colors.white.withValues(alpha: 0.5),
           width: isNext ? 2.5 : 1.5,
         ),
-        color: filled ? Colors.white.withValues(alpha: 0.15) : Colors.transparent,
+        color: filled ? Colors.white.withValues(alpha: 0.2) : Colors.transparent,
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(height: 20),
           const Text('Please enter your 6 digit PIN.', style: TextStyle(fontSize: 16)),
           const SizedBox(height: 40),
 
-          // PIN display container with hidden TextField inside
           GestureDetector(
             onTap: () => _focusNode.requestFocus(),
             child: SizedBox(
@@ -111,38 +113,46 @@ class _CustomPinEntryScreenState extends State<CustomPinEntryScreen> {
                       );
                     },
                   ),
-                  Opacity(
-                    opacity: 0.0,
-                    child: TextField(
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      keyboardType: TextInputType.number,
-                      obscureText: true,
-                      maxLength: 6,
-                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                      decoration: const InputDecoration(counterText: '', border: InputBorder.none),
-                      style: const TextStyle(color: Colors.transparent),
-                      cursorColor: Colors.transparent,
-                      showCursor: false,
-                    ),
+                  TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    keyboardType: TextInputType.number,
+                    obscureText: true,
+                    maxLength: 6,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(counterText: '', border: InputBorder.none),
+                    style: const TextStyle(color: Colors.transparent),
+                    cursorColor: Colors.transparent,
+                    showCursor: false,
                   ),
                 ],
               ),
             ),
           ),
 
-          // Show error message below the circles
+          const SizedBox(height: 16),
+
           ValueListenableBuilder<String?>(
             valueListenable: _errorNotifier,
             builder: (context, error, _) {
-              if (error == null) return const SizedBox(height: 24);
-              return Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Text(
-                  error,
-                  style: const TextStyle(color: Colors.redAccent, fontSize: 14),
-                  textAlign: TextAlign.center,
-                ),
+              return AnimatedSwitcher(
+                duration: const Duration(milliseconds: 300),
+                child:
+                    error != null
+                        ? Padding(
+                          key: const ValueKey('error'),
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            error,
+                            style: const TextStyle(
+                              color: Colors.redAccent,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        )
+                        : const SizedBox(key: ValueKey('no_error'), height: 24),
               );
             },
           ),
@@ -160,24 +170,22 @@ class _CustomPinEntryScreenState extends State<CustomPinEntryScreen> {
                   MaterialPageRoute(builder: (_) => const PinSetupScreen()),
                 );
               } else {
-                if (context.mounted) {
-                  showDialog(
-                    context: context,
-                    builder:
-                        (_) => AlertDialog(
-                          title: const Text('Unable to Reset PIN'),
-                          content: const Text(
-                            'Biometrics or device passcode must be enabled in your system settings to reset your PIN.',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context),
-                              child: const Text('OK'),
-                            ),
-                          ],
+                showDialog(
+                  context: context,
+                  builder:
+                      (_) => AlertDialog(
+                        title: const Text('Unable to Reset PIN'),
+                        content: const Text(
+                          'Biometrics or device passcode must be enabled in your system settings to reset your PIN.',
                         ),
-                  );
-                }
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('OK'),
+                          ),
+                        ],
+                      ),
+                );
               }
             },
             child: const Text('FORGOT YOUR PIN?', style: TextStyle(color: Colors.green)),

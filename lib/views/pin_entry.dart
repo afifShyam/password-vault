@@ -1,4 +1,3 @@
-import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pass_vault/viewmodels/index.dart';
@@ -31,8 +30,13 @@ class _CustomPinEntryScreenState extends State<CustomPinEntryScreen> {
       }
 
       if (_pinNotifier.value.length == 6) {
-        final authViewModel = Provider.of<AuthViewModel>(context, listen: false);
-        final success = await authViewModel.authenticateWithPin(_pinNotifier.value);
+        final authViewModel = Provider.of<AuthViewModel>(
+          context,
+          listen: false,
+        );
+        final success = await authViewModel.authenticateWithPin(
+          _pinNotifier.value,
+        );
 
         // Ensure we're still in the widget tree
         if (!mounted) return;
@@ -80,7 +84,8 @@ class _CustomPinEntryScreenState extends State<CustomPinEntryScreen> {
           color: isNext ? Colors.white : Colors.white.withValues(alpha: 0.5),
           width: isNext ? 2.5 : 1.5,
         ),
-        color: filled ? Colors.white.withValues(alpha: 0.2) : Colors.transparent,
+        color:
+            filled ? Colors.white.withValues(alpha: 0.2) : Colors.transparent,
       ),
     );
   }
@@ -93,7 +98,10 @@ class _CustomPinEntryScreenState extends State<CustomPinEntryScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(height: 20),
-          const Text('Please enter your 6 digit PIN.', style: TextStyle(fontSize: 16)),
+          const Text(
+            'Please enter your 6 digit PIN.',
+            style: TextStyle(fontSize: 16),
+          ),
           const SizedBox(height: 40),
 
           GestureDetector(
@@ -109,7 +117,10 @@ class _CustomPinEntryScreenState extends State<CustomPinEntryScreen> {
                     builder: (context, pin, _) {
                       return Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        children: List.generate(6, (i) => Flexible(child: _buildPinBox(i, pin))),
+                        children: List.generate(
+                          6,
+                          (i) => Flexible(child: _buildPinBox(i, pin)),
+                        ),
                       );
                     },
                   ),
@@ -120,7 +131,10 @@ class _CustomPinEntryScreenState extends State<CustomPinEntryScreen> {
                     obscureText: true,
                     maxLength: 6,
                     inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-                    decoration: const InputDecoration(counterText: '', border: InputBorder.none),
+                    decoration: const InputDecoration(
+                      counterText: '',
+                      border: InputBorder.none,
+                    ),
                     style: const TextStyle(color: Colors.transparent),
                     cursorColor: Colors.transparent,
                     showCursor: false,
@@ -161,7 +175,10 @@ class _CustomPinEntryScreenState extends State<CustomPinEntryScreen> {
 
           TextButton(
             onPressed: () async {
-              final viewModel = Provider.of<AuthViewModel>(context, listen: false);
+              final viewModel = Provider.of<AuthViewModel>(
+                context,
+                listen: false,
+              );
               final success = await viewModel.resetPinViaBiometric();
 
               if (success && context.mounted) {
@@ -170,6 +187,7 @@ class _CustomPinEntryScreenState extends State<CustomPinEntryScreen> {
                   MaterialPageRoute(builder: (_) => const PinSetupScreen()),
                 );
               } else {
+                if (!context.mounted) return;
                 showDialog(
                   context: context,
                   builder:
@@ -188,7 +206,10 @@ class _CustomPinEntryScreenState extends State<CustomPinEntryScreen> {
                 );
               }
             },
-            child: const Text('FORGOT YOUR PIN?', style: TextStyle(color: Colors.green)),
+            child: const Text(
+              'FORGOT YOUR PIN?',
+              style: TextStyle(color: Colors.green),
+            ),
           ),
         ],
       ),

@@ -1,4 +1,7 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
+import 'package:pass_vault/utils/index.dart';
 import 'package:pass_vault/viewmodels/index.dart';
 import 'package:pass_vault/views/index.dart';
 
@@ -12,7 +15,12 @@ class AuthScreen extends StatelessWidget {
     final authViewModel = Provider.of<AuthViewModel>(context);
 
     if (authViewModel.isAuthenticated) {
-      return const VaultScreen();
+      return IdleWatcher(
+        onTimeout: () {
+          authViewModel.reset();
+        },
+        child: const VaultScreen(),
+      );
     }
 
     return Scaffold(
@@ -60,7 +68,9 @@ class AuthScreen extends StatelessWidget {
                     backgroundColor: Colors.transparent,
                     builder: (context) {
                       return AnimatedPadding(
-                        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+                        padding: EdgeInsets.only(
+                          bottom: MediaQuery.of(context).viewInsets.bottom,
+                        ),
                         duration: const Duration(milliseconds: 300),
                         curve: Curves.easeOut,
                         child: FractionallySizedBox(
@@ -68,12 +78,19 @@ class AuthScreen extends StatelessWidget {
                           child: Container(
                             decoration: BoxDecoration(
                               color: Theme.of(context).scaffoldBackgroundColor,
-                              borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(24),
+                              ),
                             ),
                             child: SafeArea(
                               top: false,
                               child: Padding(
-                                padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+                                padding: const EdgeInsets.fromLTRB(
+                                  24,
+                                  16,
+                                  24,
+                                  24,
+                                ),
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -89,7 +106,9 @@ class AuthScreen extends StatelessWidget {
                                     ),
 
                                     // PIN input (scroll if needed)
-                                    const Expanded(child: CustomPinEntryScreen()),
+                                    const Expanded(
+                                      child: CustomPinEntryScreen(),
+                                    ),
                                   ],
                                 ),
                               ),

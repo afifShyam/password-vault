@@ -24,6 +24,8 @@ class VaultViewModel extends ChangeNotifier {
 
   bool isObscured(String id) => _obscureMap[id] ?? true;
 
+  bool isAllObscured() => _obscureMap.values.every((e) => e);
+
   void toggleVisibility(String id) {
     _obscureMap[id] = !(_obscureMap[id] ?? true);
     safeNotify();
@@ -31,6 +33,11 @@ class VaultViewModel extends ChangeNotifier {
 
   void setSearchQuery(String query) {
     _setState(_state.copyWith(searchQuery: query));
+  }
+
+  void hideAllPasswords() {
+    _obscureMap.clear();
+    safeNotify();
   }
 
   Future<void> loadPasswords() async {
@@ -44,17 +51,32 @@ class VaultViewModel extends ChangeNotifier {
               final json = Map<String, dynamic>.from(jsonDecode(e.value));
               return PasswordEntry.fromJson(json);
             } catch (_) {
-              return PasswordEntry(id: e.key, title: e.key, password: e.value, email: 'N/A');
+              return PasswordEntry(
+                id: e.key,
+                title: e.key,
+                password: e.value,
+                email: 'N/A',
+              );
             }
           }).toList();
 
       final emails = await _storage.getEmails();
 
       _setState(
-        _state.copyWith(status: VaultStatus.loaded, entries: entries, emails: emails, error: 'N/A'),
+        _state.copyWith(
+          status: VaultStatus.loaded,
+          entries: entries,
+          emails: emails,
+          error: 'N/A',
+        ),
       );
     } catch (_) {
-      _setState(_state.copyWith(status: VaultStatus.error, error: 'Failed to load passwords'));
+      _setState(
+        _state.copyWith(
+          status: VaultStatus.error,
+          error: 'Failed to load passwords',
+        ),
+      );
     }
   }
 
@@ -93,7 +115,10 @@ class VaultViewModel extends ChangeNotifier {
       email: email ?? 'N/A',
     );
 
-    await _storage.savePassword(key: newTitle, value: jsonEncode(entry.toJson()));
+    await _storage.savePassword(
+      key: newTitle,
+      value: jsonEncode(entry.toJson()),
+    );
     await _storage.saveEmail(email ?? 'N/A');
     await loadPasswords();
   }

@@ -18,7 +18,13 @@ sealed class VaultState with _$VaultState {
   }) = _VaultState;
 
   List<PasswordEntry> get filteredEntries {
-    if (searchQuery.isEmpty) return entries;
-    return entries.where((e) => e.title.toLowerCase().contains(searchQuery.toLowerCase())).toList();
+    final filteredEntries =
+        entries
+            .where((e) => !e.title.toLowerCase().contains('saved_emails'))
+            .toList();
+    if (searchQuery.isEmpty) return filteredEntries;
+    return entries
+        .where((e) => e.title.toLowerCase().contains(searchQuery.toLowerCase()))
+        .toList();
   }
 }

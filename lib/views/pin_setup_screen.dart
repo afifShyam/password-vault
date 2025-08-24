@@ -83,7 +83,8 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 200),
-      transitionBuilder: (child, animation) => ScaleTransition(scale: animation, child: child),
+      transitionBuilder:
+          (child, animation) => ScaleTransition(scale: animation, child: child),
       child: Container(
         key: ValueKey(displayChar),
         width: 40,
@@ -93,9 +94,17 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border(bottom: BorderSide(color: Colors.black.withOpacity(0.8), width: 2)),
+          border: Border(
+            bottom: BorderSide(
+              color: Colors.black.withValues(alpha: 0.8),
+              width: 2,
+            ),
+          ),
         ),
-        child: Text(displayChar, style: const TextStyle(fontSize: 28, color: Colors.black)),
+        child: Text(
+          displayChar,
+          style: const TextStyle(fontSize: 28, color: Colors.black),
+        ),
       ),
     );
   }
@@ -112,7 +121,9 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
         children: [
           Icon(icon, color: Colors.white),
           const SizedBox(width: 12),
-          Expanded(child: Text(message, style: const TextStyle(color: Colors.white))),
+          Expanded(
+            child: Text(message, style: const TextStyle(color: Colors.white)),
+          ),
         ],
       ),
       behavior: SnackBarBehavior.floating,
@@ -130,7 +141,8 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final promptText = _firstEntry == null ? 'Set a new 6-digit PIN' : 'Confirm your PIN';
+    final promptText =
+        _firstEntry == null ? 'Set a new 6-digit PIN' : 'Confirm your PIN';
 
     return GestureDetector(
       onTap: () => _focusNode.requestFocus(),
@@ -166,7 +178,10 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
                         builder: (context, pin, _) {
                           return Row(
                             mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(6, (i) => _buildPinBox(i, pin)),
+                            children: List.generate(
+                              6,
+                              (i) => _buildPinBox(i, pin),
+                            ),
                           );
                         },
                       ),
@@ -178,7 +193,9 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
                           keyboardType: TextInputType.number,
                           obscureText: _obscureText,
                           maxLength: 6,
-                          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                          inputFormatters: [
+                            FilteringTextInputFormatter.digitsOnly,
+                          ],
                           decoration: const InputDecoration(
                             counterText: '',
                             border: InputBorder.none,
@@ -199,7 +216,9 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
                 onPressed: () {
                   setState(() => _obscureText = !_obscureText);
                 },
-                icon: Icon(_obscureText ? Icons.visibility : Icons.visibility_off),
+                icon: Icon(
+                  _obscureText ? Icons.visibility : Icons.visibility_off,
+                ),
                 label: Text(_obscureText ? 'Show PIN' : 'Hide PIN'),
               ),
             ],

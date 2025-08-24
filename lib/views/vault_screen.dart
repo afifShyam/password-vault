@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pass_vault/model/index.dart';
 import 'package:pass_vault/viewmodels/index.dart';
 import 'package:provider/provider.dart';
 
@@ -10,7 +11,7 @@ class VaultScreen extends StatefulWidget {
   State<VaultScreen> createState() => _VaultScreenState();
 }
 
-class _VaultScreenState extends State<VaultScreen> {
+class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
   final _titleController = TextEditingController();
   final _passwordController = TextEditingController();
   final _searchController = TextEditingController();
@@ -19,6 +20,8 @@ class _VaultScreenState extends State<VaultScreen> {
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addObserver(this);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final viewModel = context.read<VaultViewModel>();
@@ -34,11 +37,28 @@ class _VaultScreenState extends State<VaultScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _titleController.dispose();
     _passwordController.dispose();
     _searchController.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final viewModel = context.read<VaultViewModel>();
+    switch (state) {
+      case AppLifecycleState.resumed:
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.paused:
+        if (!viewModel.isAllObscured()) {
+          viewModel.hideAllPasswords();
+        }
+        break;
+      default:
+        break;
+    }
   }
 
   void _showAddPasswordDialog() {
@@ -69,13 +89,19 @@ class _VaultScreenState extends State<VaultScreen> {
                     const SizedBox(height: 10),
                     if (!isCustomEmail)
                       DropdownButtonFormField<String>(
-                        value: selectedEmail,
+                        initialValue: selectedEmail,
                         decoration: const InputDecoration(labelText: 'Email'),
                         items: [
                           ...emails.map(
-                            (email) => DropdownMenuItem(value: email, child: Text(email)),
+                            (email) => DropdownMenuItem(
+                              value: email,
+                              child: Text(email),
+                            ),
                           ),
-                          const DropdownMenuItem(value: 'add_new', child: Text('Add new email')),
+                          const DropdownMenuItem(
+                            value: 'add_new',
+                            child: Text('Add new email'),
+                          ),
                         ],
                         onChanged: (value) {
                           if (value == 'add_new') {
@@ -88,7 +114,9 @@ class _VaultScreenState extends State<VaultScreen> {
                     else
                       TextField(
                         controller: customEmailController,
-                        decoration: const InputDecoration(labelText: 'New Email'),
+                        decoration: const InputDecoration(
+                          labelText: 'New Email',
+                        ),
                         keyboardType: TextInputType.emailAddress,
                       ),
                   ],
@@ -108,7 +136,9 @@ class _VaultScreenState extends State<VaultScreen> {
                       final title = _titleController.text.trim();
                       final password = _passwordController.text.trim();
                       final email =
-                          isCustomEmail ? customEmailController.text.trim() : selectedEmail?.trim();
+                          isCustomEmail
+                              ? customEmailController.text.trim()
+                              : selectedEmail?.trim();
 
                       if (title.isNotEmpty && password.isNotEmpty) {
                         viewModel.addPassword(title, password, email);
@@ -156,7 +186,10 @@ class _VaultScreenState extends State<VaultScreen> {
               ],
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
               ElevatedButton(
                 onPressed: () {
                   final newTitle = titleController.text.trim();
@@ -188,7 +221,10 @@ class _VaultScreenState extends State<VaultScreen> {
             title: const Text('Delete This Password'),
             content: Text('Delete "${entry.title}"?'),
             actions: [
-              TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel'),
+              ),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
                 onPressed: () {
@@ -202,83 +238,100 @@ class _VaultScreenState extends State<VaultScreen> {
     );
   }
 
-  Widget _buildEntryCard(dynamic entry) {
+  Widget _buildEntryTile(PasswordEntry entry) {
     return Consumer<VaultViewModel>(
       builder: (context, viewModel, _) {
         final isObscured = viewModel.isObscured(entry.id);
+        final colors = Theme.of(context).colorScheme;
+        final textTheme = Theme.of(context).textTheme;
 
         return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          elevation: 1,
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                /// Title & Actions Row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(entry.title, style: Theme.of(context).textTheme.titleMedium),
+          margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4.0),
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            side: BorderSide(color: colors.outline),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: InkWell(
+            onDoubleTap: () {
+              Clipboard.setData(ClipboardData(text: entry.password));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Password copied to clipboard!')),
+              );
+            },
+            onTap: () => _showEditDialog(entry),
+            onLongPress: () => _confirmDelete(entry),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title and Email section
+                  Text(
+                    entry.title,
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
                     ),
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: Icon(
-                            isObscured ? Icons.visibility : Icons.visibility_off,
-                            size: 20,
-                          ),
-                          onPressed: () => viewModel.toggleVisibility(entry.id),
-                          tooltip: 'Show/Hide password',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (entry.email.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2.0),
+                      child: Text(
+                        entry.email,
+                        style: textTheme.bodyMedium?.copyWith(
+                          color: colors.onSurfaceVariant,
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.copy, size: 20),
-                          onPressed: () {
-                            Clipboard.setData(ClipboardData(text: entry.password));
-                            ScaffoldMessenger.of(
-                              context,
-                            ).showSnackBar(const SnackBar(content: Text('Password copied')));
-                          },
-                          tooltip: 'Copy password',
-                        ),
-                        PopupMenuButton<String>(
-                          tooltip: 'More',
-                          icon: const Icon(Icons.more_vert, size: 20),
-                          onSelected: (value) {
-                            if (value == 'edit') {
-                              _showEditDialog(entry);
-                            } else if (value == 'delete') {
-                              _confirmDelete(entry);
-                            }
-                          },
-                          itemBuilder:
-                              (context) => [
-                                const PopupMenuItem(value: 'edit', child: Text('Edit')),
-                                const PopupMenuItem(value: 'delete', child: Text('Delete')),
-                              ],
-                        ),
-                      ],
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                  ],
-                ),
 
-                const SizedBox(height: 8),
+                  const SizedBox(height: 10),
 
-                Text(
-                  isObscured ? '••••••••' : entry.password,
-                  style: const TextStyle(letterSpacing: 1.5, fontSize: 14),
-                ),
-                if (entry.email.isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 4),
+                  // Password and actions row
+                  // The password text now wraps without causing an overflow
+                  Expanded(
                     child: Text(
-                      entry.email,
-                      style: const TextStyle(fontSize: 13, color: Colors.grey),
+                      isObscured ? '●' * 10 : entry.password,
+                      style: textTheme.bodyLarge?.copyWith(
+                        fontFamily: 'monospace',
+                        color: colors.onSurface,
+                      ),
                     ),
                   ),
-              ],
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      // Buttons have minimal padding to save space
+                      IconButton(
+                        icon: Icon(
+                          isObscured
+                              ? Icons.visibility_outlined
+                              : Icons.visibility_off_outlined,
+                        ),
+                        iconSize: 22,
+                        onPressed: () => viewModel.toggleVisibility(entry.id),
+                        tooltip: 'Show/Hide password',
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.copy_outlined),
+                        iconSize: 22,
+                        onPressed: () {
+                          Clipboard.setData(
+                            ClipboardData(text: entry.password),
+                          );
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Password copied!')),
+                          );
+                        },
+                        tooltip: 'Copy password',
+                      ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -289,12 +342,19 @@ class _VaultScreenState extends State<VaultScreen> {
   @override
   Widget build(BuildContext context) {
     final state = context.select<VaultViewModel, VaultState>((vm) => vm.state);
-    final entries = context.select<VaultViewModel, List>((vm) => vm.state.filteredEntries);
+    final entries = context.select<VaultViewModel, List<PasswordEntry>>(
+      (vm) => vm.state.filteredEntries,
+    );
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('PassVault'),
-        actions: [IconButton(icon: const Icon(Icons.add), onPressed: _showAddPasswordDialog)],
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.add),
+            onPressed: _showAddPasswordDialog,
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: Padding(
@@ -306,6 +366,16 @@ class _VaultScreenState extends State<VaultScreen> {
               decoration: InputDecoration(
                 hintText: 'Search...',
                 prefixIcon: const Icon(Icons.search),
+                suffixIcon:
+                    _searchController.text.isNotEmpty
+                        ? IconButton(
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            _focusNode.unfocus();
+                          },
+                        )
+                        : null,
                 filled: true,
                 fillColor: Colors.blueGrey,
                 border: OutlineInputBorder(
@@ -323,16 +393,129 @@ class _VaultScreenState extends State<VaultScreen> {
         VaultStatus.loaded =>
           entries.isEmpty
               ? const Center(child: Text('No matching passwords found.'))
-              : ListView.builder(
-                itemCount: entries.length,
-                itemBuilder: (context, index) {
-                  return _buildEntryCard(entries[index]);
-                },
+              : Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: GridView.builder(
+                  itemCount: entries.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2, // 2 columns
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 1,
+                  ),
+                  itemBuilder: (context, index) {
+                    return _buildEntryTile(entries[index]);
+                  },
+                ),
               ),
+
         VaultStatus.error => Center(
-          child: Text('Error: ${state.error}', style: const TextStyle(color: Colors.red)),
+          child: Text(
+            'Error: ${state.error}',
+            style: const TextStyle(color: Colors.red),
+          ),
         ),
       },
     );
   }
 }
+
+  // Widget _buildEntryCard(dynamic entry) {
+  //   return Consumer<VaultViewModel>(
+  //     builder: (context, viewModel, _) {
+  //       final isObscured = viewModel.isObscured(entry.id);
+
+  //       return Card(
+  //         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+  //         shape: RoundedRectangleBorder(
+  //           borderRadius: BorderRadius.circular(12),
+  //         ),
+  //         elevation: 1,
+  //         child: Padding(
+  //           padding: const EdgeInsets.all(12),
+  //           child: Column(
+  //             crossAxisAlignment: CrossAxisAlignment.start,
+  //             children: [
+  //               /// Title & Actions Row
+  //               Row(
+  //                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  //                 children: [
+  //                   Expanded(
+  //                     child: Text(
+  //                       entry.title,
+  //                       style: Theme.of(context).textTheme.titleMedium,
+  //                     ),
+  //                   ),
+  //                   Row(
+  //                     children: [
+  //                       IconButton(
+  //                         icon: Icon(
+  //                           isObscured
+  //                               ? Icons.visibility
+  //                               : Icons.visibility_off,
+  //                           size: 20,
+  //                         ),
+  //                         onPressed: () => viewModel.toggleVisibility(entry.id),
+  //                         tooltip: 'Show/Hide password',
+  //                       ),
+  //                       IconButton(
+  //                         icon: const Icon(Icons.copy, size: 20),
+  //                         onPressed: () {
+  //                           Clipboard.setData(
+  //                             ClipboardData(text: entry.password),
+  //                           );
+  //                           ScaffoldMessenger.of(context).showSnackBar(
+  //                             const SnackBar(content: Text('Password copied')),
+  //                           );
+  //                         },
+  //                         tooltip: 'Copy password',
+  //                       ),
+  //                       PopupMenuButton<String>(
+  //                         tooltip: 'More',
+  //                         icon: const Icon(Icons.more_vert, size: 20),
+  //                         onSelected: (value) {
+  //                           if (value == 'edit') {
+  //                             _showEditDialog(entry);
+  //                           } else if (value == 'delete') {
+  //                             _confirmDelete(entry);
+  //                           }
+  //                         },
+  //                         itemBuilder:
+  //                             (context) => [
+  //                               const PopupMenuItem(
+  //                                 value: 'edit',
+  //                                 child: Text('Edit'),
+  //                               ),
+  //                               const PopupMenuItem(
+  //                                 value: 'delete',
+  //                                 child: Text('Delete'),
+  //                               ),
+  //                             ],
+  //                       ),
+  //                     ],
+  //                   ),
+  //                 ],
+  //               ),
+
+  //               const SizedBox(height: 8),
+
+  //               Text(
+  //                 isObscured ? '••••••••' : entry.password,
+  //                 style: const TextStyle(letterSpacing: 1.5, fontSize: 14),
+  //               ),
+  //               if (entry.email.isNotEmpty)
+  //                 Padding(
+  //                   padding: const EdgeInsets.only(top: 4),
+  //                   child: Text(
+  //                     entry.email,
+  //                     style: const TextStyle(fontSize: 13, color: Colors.grey),
+  //                   ),
+  //                 ),
+  //             ],
+  //           ),
+  //         ),
+  //       );
+  //     },
+  //   );
+  // }
+  

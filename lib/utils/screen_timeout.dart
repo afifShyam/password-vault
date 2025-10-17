@@ -18,10 +18,17 @@ class _IdleWatcherState extends State<IdleWatcher> with WidgetsBindingObserver {
 
   void _resetTimer() {
     _inactivityTimer?.cancel();
-    _inactivityTimer = Timer(_timeoutDuration, widget.onTimeout);
+    _inactivityTimer = Timer(_timeoutDuration, _handleTimeout);
   }
 
   void _handleUserInteraction([_]) => _resetTimer();
+
+  void _handleTimeout() {
+    if (!mounted) return;
+    final navigator = Navigator.of(context, rootNavigator: true);
+    navigator.popUntil((route) => route.isFirst);
+    widget.onTimeout();
+  }
 
   @override
   void initState() {

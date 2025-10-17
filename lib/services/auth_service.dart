@@ -52,7 +52,8 @@ class AuthService {
 
   Future<void> setPin(String pin) => _storageService.setPin(pin);
 
-  Future<bool> verifyPin(String inputPin) => _storageService.verifyPin(inputPin);
+  Future<bool> verifyPin(String inputPin) =>
+      _storageService.verifyPin(inputPin);
 
   Future<bool> isPinSet() => _storageService.isPinSet();
 

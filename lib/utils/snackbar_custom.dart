@@ -14,7 +14,9 @@ void showCustomSnackBar(
       children: [
         Icon(icon, color: Colors.white),
         const SizedBox(width: 12),
-        Expanded(child: Text(message, style: const TextStyle(color: Colors.white))),
+        Expanded(
+          child: Text(message, style: const TextStyle(color: Colors.white)),
+        ),
       ],
     ),
     backgroundColor: backgroundColor,

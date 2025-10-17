@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:pass_vault/model/index.dart';
 import 'package:pass_vault/viewmodels/index.dart';
+import 'package:pass_vault/views/portfolio_tab.dart';
+import 'package:pass_vault/views/vault/widgets/vault_empty_state.dart';
+import 'package:pass_vault/views/vault/widgets/vault_entry_card.dart';
+import 'package:pass_vault/views/vault/widgets/vault_search_bar.dart';
 import 'package:provider/provider.dart';
 
 class VaultScreen extends StatefulWidget {
@@ -11,26 +15,29 @@ class VaultScreen extends StatefulWidget {
   State<VaultScreen> createState() => _VaultScreenState();
 }
 
-class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
-  final _titleController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _searchController = TextEditingController();
-  final _focusNode = FocusNode();
+class _VaultScreenState extends State<VaultScreen>
+    with WidgetsBindingObserver, SingleTickerProviderStateMixin {
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
+  final FocusNode _searchFocusNode = FocusNode();
+
+  late final TabController _tabController;
 
   @override
   void initState() {
     super.initState();
-
     WidgetsBinding.instance.addObserver(this);
+
+    _tabController = TabController(length: 2, vsync: this);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final viewModel = context.read<VaultViewModel>();
-      // load emails and passwords
       viewModel.loadPasswords();
 
       _searchController.addListener(() {
-        final viewModel = context.read<VaultViewModel>();
-        viewModel.setSearchQuery(_searchController.text);
+        if (!mounted) return;
+        context.read<VaultViewModel>().setSearchQuery(_searchController.text);
       });
     });
   }
@@ -38,10 +45,11 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _tabController.dispose();
     _titleController.dispose();
     _passwordController.dispose();
     _searchController.dispose();
-    _focusNode.dispose();
+    _searchFocusNode.dispose();
     super.dispose();
   }
 
@@ -56,466 +64,431 @@ class _VaultScreenState extends State<VaultScreen> with WidgetsBindingObserver {
           viewModel.hideAllPasswords();
         }
         break;
-      default:
+      case AppLifecycleState.detached:
+      case AppLifecycleState.hidden:
         break;
     }
   }
 
-  void _showAddPasswordDialog() {
+  Future<void> _showAddPasswordDialog() async {
     final viewModel = context.read<VaultViewModel>();
     final emails = viewModel.state.emails;
     String? selectedEmail = emails.isNotEmpty ? emails.first : null;
-    bool isCustomEmail = false;
-    final customEmailController = TextEditingController();
+    bool isCustomEmail = emails.isEmpty;
+    final TextEditingController customEmailController = TextEditingController();
 
-    showDialog(
+    await showDialog<void>(
       context: context,
-      builder:
-          (_) => StatefulBuilder(
-            builder: (context, setState) {
-              return AlertDialog(
-                title: const Text('Add Password'),
-                content: Column(
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              title: const Text('Add a password'),
+              content: SingleChildScrollView(
+                child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     TextField(
                       controller: _titleController,
-                      decoration: const InputDecoration(labelText: 'Title'),
+                      decoration: const InputDecoration(
+                        labelText: 'Title',
+                        hintText: 'Eg. Email, Netflix, Bank',
+                      ),
                     ),
+                    const SizedBox(height: 12),
                     TextField(
                       controller: _passwordController,
-                      decoration: const InputDecoration(labelText: 'Password'),
-                    ),
-                    const SizedBox(height: 10),
-                    if (!isCustomEmail)
-                      DropdownButtonFormField<String>(
-                        initialValue: selectedEmail,
-                        decoration: const InputDecoration(labelText: 'Email'),
-                        items: [
-                          ...emails.map(
-                            (email) => DropdownMenuItem(
-                              value: email,
-                              child: Text(email),
-                            ),
-                          ),
-                          const DropdownMenuItem(
-                            value: 'add_new',
-                            child: Text('Add new email'),
-                          ),
-                        ],
-                        onChanged: (value) {
-                          if (value == 'add_new') {
-                            setState(() => isCustomEmail = true);
-                          } else {
-                            selectedEmail = value;
-                          }
-                        },
-                      )
-                    else
-                      TextField(
-                        controller: customEmailController,
-                        decoration: const InputDecoration(
-                          labelText: 'New Email',
-                        ),
-                        keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(
+                        labelText: 'Password',
+                        hintText: 'Enter the password to store',
                       ),
+                    ),
+                    const SizedBox(height: 12),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child:
+                          isCustomEmail
+                              ? TextField(
+                                key: const ValueKey('customEmail'),
+                                controller: customEmailController,
+                                decoration: const InputDecoration(
+                                  labelText: 'Email (optional)',
+                                  hintText: 'name@example.com',
+                                ),
+                                keyboardType: TextInputType.emailAddress,
+                              )
+                              : DropdownButtonFormField<String>(
+                                key: const ValueKey('emailDropdown'),
+                                initialValue: selectedEmail,
+                                decoration: const InputDecoration(
+                                  labelText: 'Email (optional)',
+                                ),
+                                items: [
+                                  ...emails.map(
+                                    (email) => DropdownMenuItem(
+                                      value: email,
+                                      child: Text(email),
+                                    ),
+                                  ),
+                                  const DropdownMenuItem(
+                                    value: 'add_new',
+                                    child: Text('Add a new email'),
+                                  ),
+                                ],
+                                onChanged: (value) {
+                                  if (value == 'add_new') {
+                                    setState(() => isCustomEmail = true);
+                                  } else {
+                                    selectedEmail = value;
+                                  }
+                                },
+                              ),
+                    ),
                   ],
                 ),
-                actions: [
-                  TextButton(
-                    onPressed: () {
-                      _titleController.clear();
-                      _passwordController.clear();
-                      customEmailController.clear();
-                      Navigator.pop(context);
-                    },
-                    child: const Text('Cancel'),
-                  ),
-                  ElevatedButton(
-                    onPressed: () {
-                      final title = _titleController.text.trim();
-                      final password = _passwordController.text.trim();
-                      final email =
-                          isCustomEmail
-                              ? customEmailController.text.trim()
-                              : selectedEmail?.trim();
+              ),
+              actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    _titleController.clear();
+                    _passwordController.clear();
+                    customEmailController.clear();
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Cancel'),
+                ),
+                FilledButton.icon(
+                  icon: const Icon(Icons.save_outlined),
+                  onPressed: () {
+                    final title = _titleController.text.trim();
+                    final password = _passwordController.text.trim();
+                    final email =
+                        isCustomEmail
+                            ? customEmailController.text.trim()
+                            : selectedEmail?.trim();
 
-                      if (title.isNotEmpty && password.isNotEmpty) {
-                        viewModel.addPassword(title, password, email);
-                        _titleController.clear();
-                        _passwordController.clear();
-                        customEmailController.clear();
-                        Navigator.pop(context);
-                      }
-                    },
-                    child: const Text('Save'),
-                  ),
-                ],
-              );
-            },
-          ),
+                    if (title.isEmpty || password.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Title and password are both required'),
+                        ),
+                      );
+                      return;
+                    }
+
+                    viewModel.addPassword(title, password, email);
+                    _titleController.clear();
+                    _passwordController.clear();
+                    customEmailController.clear();
+                    Navigator.of(context).pop();
+                  },
+                  label: const Text('Save'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 
-  void _showEditDialog(dynamic entry) {
+  void _showEditDialog(PasswordEntry entry) {
     final viewModel = context.read<VaultViewModel>();
-    final titleController = TextEditingController(text: entry.title);
-    final passwordController = TextEditingController(text: entry.password);
-    final emailController = TextEditingController(text: entry.email);
+    final TextEditingController titleController = TextEditingController(
+      text: entry.title,
+    );
+    final TextEditingController passwordController = TextEditingController(
+      text: entry.password,
+    );
+    final TextEditingController emailController = TextEditingController(
+      text: entry.email,
+    );
 
-    showDialog(
+    showDialog<void>(
       context: context,
-      builder:
-          (_) => AlertDialog(
-            title: const Text('Edit Entry'),
-            content: Column(
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text('Edit entry'),
+          content: SingleChildScrollView(
+            child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextField(
                   controller: titleController,
                   decoration: const InputDecoration(labelText: 'Title'),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: passwordController,
                   decoration: const InputDecoration(labelText: 'Password'),
                 ),
+                const SizedBox(height: 12),
                 TextField(
                   controller: emailController,
                   decoration: const InputDecoration(labelText: 'Email'),
+                  keyboardType: TextInputType.emailAddress,
                 ),
               ],
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  final newTitle = titleController.text.trim();
-                  final newPassword = passwordController.text.trim();
-                  final newEmail = emailController.text.trim();
-
-                  if (newTitle.isNotEmpty && newPassword.isNotEmpty) {
-                    viewModel.updatePassword(
-                      oldTitle: entry.title,
-                      newTitle: newTitle,
-                      password: newPassword,
-                      email: newEmail,
-                    );
-                    Navigator.pop(context);
-                  }
-                },
-                child: const Text('Save'),
-              ),
-            ],
           ),
-    );
-  }
-
-  void _confirmDelete(dynamic entry) {
-    showDialog(
-      context: context,
-      builder:
-          (ctx) => AlertDialog(
-            title: const Text('Delete This Password'),
-            content: Text('Delete "${entry.title}"?'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-                onPressed: () {
-                  context.read<VaultViewModel>().deletePassword(entry.title);
-                  Navigator.of(ctx).pop();
-                },
-                child: const Text('Delete'),
-              ),
-            ],
-          ),
-    );
-  }
-
-  Widget _buildEntryTile(PasswordEntry entry) {
-    return Consumer<VaultViewModel>(
-      builder: (context, viewModel, _) {
-        final isObscured = viewModel.isObscured(entry.id);
-        final colors = Theme.of(context).colorScheme;
-        final textTheme = Theme.of(context).textTheme;
-
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 6.0, horizontal: 4.0),
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(
-            side: BorderSide(color: colors.outline),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: InkWell(
-            onDoubleTap: () {
-              Clipboard.setData(ClipboardData(text: entry.password));
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Password copied to clipboard!')),
-              );
-            },
-            onTap: () => _showEditDialog(entry),
-            onLongPress: () => _confirmDelete(entry),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Title and Email section
-                  Text(
-                    entry.title,
-                    style: textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (entry.email.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 2.0),
-                      child: Text(
-                        entry.email,
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-
-                  const SizedBox(height: 10),
-
-                  // Password and actions row
-                  // The password text now wraps without causing an overflow
-                  Expanded(
-                    child: Text(
-                      isObscured ? '●' * 10 : entry.password,
-                      style: textTheme.bodyLarge?.copyWith(
-                        fontFamily: 'monospace',
-                        color: colors.onSurface,
-                      ),
-                    ),
-                  ),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      // Buttons have minimal padding to save space
-                      IconButton(
-                        icon: Icon(
-                          isObscured
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
-                        ),
-                        iconSize: 22,
-                        onPressed: () => viewModel.toggleVisibility(entry.id),
-                        tooltip: 'Show/Hide password',
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.copy_outlined),
-                        iconSize: 22,
-                        onPressed: () {
-                          Clipboard.setData(
-                            ClipboardData(text: entry.password),
-                          );
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('Password copied!')),
-                          );
-                        },
-                        tooltip: 'Copy password',
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
             ),
-          ),
+            FilledButton.icon(
+              icon: const Icon(Icons.save_outlined),
+              onPressed: () {
+                final String newTitle = titleController.text.trim();
+                final String newPassword = passwordController.text.trim();
+                final String newEmail = emailController.text.trim();
+
+                if (newTitle.isEmpty || newPassword.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Title and password are both required'),
+                    ),
+                  );
+                  return;
+                }
+
+                viewModel.updatePassword(
+                  oldTitle: entry.title,
+                  newTitle: newTitle,
+                  password: newPassword,
+                  email: newEmail,
+                );
+                Navigator.of(context).pop();
+              },
+              label: const Text('Save'),
+            ),
+          ],
         );
       },
     );
   }
 
+  void _confirmDelete(PasswordEntry entry) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: const Text('Delete this password?'),
+          content: Text('Delete "${entry.title}" from your vault?'),
+          actionsPadding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton.icon(
+              icon: const Icon(Icons.delete_outline),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.redAccent.withValues(alpha: 0.2),
+                foregroundColor: Colors.redAccent,
+              ),
+              onPressed: () {
+                context.read<VaultViewModel>().deletePassword(entry.title);
+                Navigator.of(ctx).pop();
+              },
+              label: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildVaultTab(VaultState state, List<PasswordEntry> entries) {
+    switch (state.status) {
+      case VaultStatus.initial:
+      case VaultStatus.loading:
+        return const Center(child: CircularProgressIndicator());
+      case VaultStatus.error:
+        return Center(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Text(
+              'We ran into an issue loading your vault.\n${state.error}',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        );
+      case VaultStatus.loaded:
+        if (entries.isEmpty) {
+          return VaultEmptyState(onAdd: _showAddPasswordDialog);
+        }
+
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final double width = constraints.maxWidth;
+            const double horizontalPadding = 48; // grid padding left + right
+            const double spacing = 18;
+
+            final int crossAxisCount = width < 340 ? 1 : 2;
+
+            final double availableWidth =
+                width - horizontalPadding - spacing * (crossAxisCount - 1);
+            final double tileWidth =
+                crossAxisCount == 0 ? width : availableWidth / crossAxisCount;
+
+            final double heightFactor =
+                tileWidth <= 150
+                    ? 2.35
+                    : tileWidth <= 190
+                    ? 1.95
+                    : tileWidth <= 230
+                    ? 1.65
+                    : 1.45;
+            final double childAspectRatio = 1 / heightFactor;
+
+            return GridView.builder(
+              padding: const EdgeInsets.fromLTRB(24, 16, 24, 120),
+              physics: const BouncingScrollPhysics(),
+              itemCount: entries.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: crossAxisCount,
+                crossAxisSpacing: spacing,
+                mainAxisSpacing: spacing,
+                childAspectRatio: childAspectRatio,
+              ),
+              itemBuilder: (context, index) {
+                final entry = entries[index];
+                return VaultEntryCard(
+                  entry: entry,
+                  onEdit: () => _showEditDialog(entry),
+                  onDelete: () => _confirmDelete(entry),
+                );
+              },
+            );
+          },
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final state = context.select<VaultViewModel, VaultState>((vm) => vm.state);
-    final entries = context.select<VaultViewModel, List<PasswordEntry>>(
-      (vm) => vm.state.filteredEntries,
-    );
+    final vaultViewModel = context.watch<VaultViewModel>();
+    final VaultState state = vaultViewModel.state;
+    final List<PasswordEntry> entries = state.filteredEntries;
+
+    final ThemeData theme = Theme.of(context);
+    final ColorScheme colors = theme.colorScheme;
+    final TextTheme textTheme = theme.textTheme;
+    final int totalEntries = state.entries.length;
+    final String entryLabel = totalEntries == 1 ? 'item' : 'items';
 
     return Scaffold(
+      extendBody: true,
+      backgroundColor: colors.surface,
       appBar: AppBar(
-        title: const Text('PassVault'),
+        titleSpacing: 24,
+        toolbarHeight: 96,
+        backgroundColor: colors.surface,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        surfaceTintColor: Colors.transparent,
+        systemOverlayStyle: const SystemUiOverlayStyle(
+          statusBarBrightness: Brightness.dark,
+          statusBarIconBrightness: Brightness.light,
+          statusBarColor: Colors.transparent,
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              'PassVault',
+              style: textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '$totalEntries $entryLabel securely stored',
+              style: textTheme.bodyMedium?.copyWith(
+                color: colors.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
+            tooltip: 'Add password',
             onPressed: _showAddPasswordDialog,
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
+          preferredSize: const Size.fromHeight(148),
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            child: TextField(
-              controller: _searchController,
-              focusNode: _focusNode,
-              onTapOutside: (_) => _focusNode.unfocus(),
-              decoration: InputDecoration(
-                hintText: 'Search...',
-                prefixIcon: const Icon(Icons.search),
-                suffixIcon:
-                    _searchController.text.isNotEmpty
-                        ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            _focusNode.unfocus();
-                          },
-                        )
-                        : null,
-                filled: true,
-                fillColor: Colors.blueGrey,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+            child: Column(
+              children: [
+                VaultSearchBar(
+                  controller: _searchController,
+                  focusNode: _searchFocusNode,
                 ),
-              ),
+                const SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    color: colors.surfaceContainerHigh.withValues(alpha: 0.25),
+                  ),
+                  child: TabBar(
+                    controller: _tabController,
+                    indicatorSize: TabBarIndicatorSize.tab,
+                    dividerColor: Colors.transparent,
+                    labelColor: colors.onPrimaryContainer,
+                    unselectedLabelColor: colors.onSurfaceVariant,
+                    labelStyle: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                    unselectedLabelStyle: textTheme.titleMedium,
+                    indicator: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      color: colors.primaryContainer.withValues(alpha: 0.9),
+                      boxShadow: [
+                        BoxShadow(
+                          color: colors.primary.withValues(alpha: 0.25),
+                          blurRadius: 14,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    tabs: const [
+                      Tab(
+                        icon: Icon(Icons.shield_moon_outlined),
+                        text: 'Vault',
+                      ),
+                      Tab(
+                        icon: Icon(Icons.travel_explore_outlined),
+                        text: 'Portfolio',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
         ),
       ),
-      body: switch (state.status) {
-        VaultStatus.initial => const Center(child: Text('Initializing...')),
-        VaultStatus.loading => const Center(child: CircularProgressIndicator()),
-        VaultStatus.loaded =>
-          entries.isEmpty
-              ? const Center(child: Text('No matching passwords found.'))
-              : Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: GridView.builder(
-                  itemCount: entries.length,
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2, // 2 columns
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1,
-                  ),
-                  itemBuilder: (context, index) {
-                    return _buildEntryTile(entries[index]);
-                  },
-                ),
-              ),
-
-        VaultStatus.error => Center(
-          child: Text(
-            'Error: ${state.error}',
-            style: const TextStyle(color: Colors.red),
-          ),
-        ),
-      },
+      body: TabBarView(
+        controller: _tabController,
+        physics: const BouncingScrollPhysics(),
+        children: [_buildVaultTab(state, entries), const PortfolioTab()],
+      ),
     );
   }
 }
-
-  // Widget _buildEntryCard(dynamic entry) {
-  //   return Consumer<VaultViewModel>(
-  //     builder: (context, viewModel, _) {
-  //       final isObscured = viewModel.isObscured(entry.id);
-
-  //       return Card(
-  //         margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-  //         shape: RoundedRectangleBorder(
-  //           borderRadius: BorderRadius.circular(12),
-  //         ),
-  //         elevation: 1,
-  //         child: Padding(
-  //           padding: const EdgeInsets.all(12),
-  //           child: Column(
-  //             crossAxisAlignment: CrossAxisAlignment.start,
-  //             children: [
-  //               /// Title & Actions Row
-  //               Row(
-  //                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
-  //                 children: [
-  //                   Expanded(
-  //                     child: Text(
-  //                       entry.title,
-  //                       style: Theme.of(context).textTheme.titleMedium,
-  //                     ),
-  //                   ),
-  //                   Row(
-  //                     children: [
-  //                       IconButton(
-  //                         icon: Icon(
-  //                           isObscured
-  //                               ? Icons.visibility
-  //                               : Icons.visibility_off,
-  //                           size: 20,
-  //                         ),
-  //                         onPressed: () => viewModel.toggleVisibility(entry.id),
-  //                         tooltip: 'Show/Hide password',
-  //                       ),
-  //                       IconButton(
-  //                         icon: const Icon(Icons.copy, size: 20),
-  //                         onPressed: () {
-  //                           Clipboard.setData(
-  //                             ClipboardData(text: entry.password),
-  //                           );
-  //                           ScaffoldMessenger.of(context).showSnackBar(
-  //                             const SnackBar(content: Text('Password copied')),
-  //                           );
-  //                         },
-  //                         tooltip: 'Copy password',
-  //                       ),
-  //                       PopupMenuButton<String>(
-  //                         tooltip: 'More',
-  //                         icon: const Icon(Icons.more_vert, size: 20),
-  //                         onSelected: (value) {
-  //                           if (value == 'edit') {
-  //                             _showEditDialog(entry);
-  //                           } else if (value == 'delete') {
-  //                             _confirmDelete(entry);
-  //                           }
-  //                         },
-  //                         itemBuilder:
-  //                             (context) => [
-  //                               const PopupMenuItem(
-  //                                 value: 'edit',
-  //                                 child: Text('Edit'),
-  //                               ),
-  //                               const PopupMenuItem(
-  //                                 value: 'delete',
-  //                                 child: Text('Delete'),
-  //                               ),
-  //                             ],
-  //                       ),
-  //                     ],
-  //                   ),
-  //                 ],
-  //               ),
-
-  //               const SizedBox(height: 8),
-
-  //               Text(
-  //                 isObscured ? '••••••••' : entry.password,
-  //                 style: const TextStyle(letterSpacing: 1.5, fontSize: 14),
-  //               ),
-  //               if (entry.email.isNotEmpty)
-  //                 Padding(
-  //                   padding: const EdgeInsets.only(top: 4),
-  //                   child: Text(
-  //                     entry.email,
-  //                     style: const TextStyle(fontSize: 13, color: Colors.grey),
-  //                   ),
-  //                 ),
-  //             ],
-  //           ),
-  //         ),
-  //       );
-  //     },
-  //   );
-  // }
-  

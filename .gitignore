@@ -8,7 +8,7 @@
 build/
 .flutter-plugins
 .flutter-plugins-dependencies
-.gitignore
+# .gitignore
 .metadata
 *.lock
 

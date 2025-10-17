@@ -12,5 +12,6 @@ sealed class PasswordEntry with _$PasswordEntry {
     @Default('') String email,
   }) = _PasswordEntry;
 
-  factory PasswordEntry.fromJson(Map<String, dynamic> json) => _$PasswordEntryFromJson(json);
+  factory PasswordEntry.fromJson(Map<String, dynamic> json) =>
+      _$PasswordEntryFromJson(json);
 }

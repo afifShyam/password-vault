@@ -1,13 +1,32 @@
+import 'dart:convert';
+
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+const AndroidOptions _androidOptions = AndroidOptions(
+  encryptedSharedPreferences: true,
+  sharedPreferencesName: 'pass_vault_secure_store',
+  preferencesKeyPrefix: 'pass_vault_',
+);
+
+const IOSOptions _iosOptions = IOSOptions(
+  accessibility: KeychainAccessibility.first_unlock,
+  synchronizable: true,
+);
+
 class SecureStorageService {
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final FlutterSecureStorage _storage = const FlutterSecureStorage(
+    aOptions: _androidOptions,
+    iOptions: _iosOptions,
+  );
 
   static const String _pinKey = 'user_pin';
   static const String _emailKey = 'saved_emails';
 
   // Password storage
-  Future<void> savePassword({required String key, required String value}) async {
+  Future<void> savePassword({
+    required String key,
+    required String value,
+  }) async {
     await _storage.write(key: key, value: value);
   }
 
@@ -39,7 +58,11 @@ class SecureStorageService {
   Future<List<String>> getEmails() async {
     final csv = await _storage.read(key: _emailKey);
     if (csv == null || csv.trim().isEmpty) return [];
-    return csv.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    return csv
+        .split(',')
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toList();
   }
 
   // PIN storage
@@ -49,7 +72,9 @@ class SecureStorageService {
 
   Future<bool> verifyPin(String inputPin) async {
     final storedPin = await _storage.read(key: _pinKey);
-    return storedPin != null && storedPin == inputPin;
+    final decodedPin = jsonDecode(storedPin ?? '');
+
+    return storedPin != null && decodedPin['password'] == inputPin;
   }
 
   Future<bool> isPinSet() async {

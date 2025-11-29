@@ -16,10 +16,6 @@ class AuthService {
 
       return await _auth.authenticate(
         localizedReason: 'Please authenticate to access your password vault',
-        options: const AuthenticationOptions(
-          biometricOnly: false, // Allow fallback to device passcode
-          stickyAuth: true,
-        ),
       );
     } catch (e) {
       log('AuthService error: $e');
@@ -37,10 +33,6 @@ class AuthService {
     try {
       return await _auth.authenticate(
         localizedReason: 'Authenticate to reset your app PIN',
-        options: const AuthenticationOptions(
-          biometricOnly: false, // allows fallback to device PIN/passcode
-          stickyAuth: true,
-        ),
       );
     } catch (e) {
       log('Biometric reset failed: $e');

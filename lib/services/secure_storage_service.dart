@@ -21,6 +21,12 @@ class SecureStorageService {
 
   static const String _pinKey = 'user_pin';
   static const String _emailKey = 'saved_emails';
+  static const String encryptionKeyStorageKey = 'vault_encryption_key';
+  static const Set<String> _reservedKeys = {
+    _pinKey,
+    _emailKey,
+    encryptionKeyStorageKey,
+  };
 
   // Password storage
   Future<void> savePassword({
@@ -39,11 +45,15 @@ class SecureStorageService {
   }
 
   Future<List<String>> getAllKeys() async {
-    return await _storage.readAll().then((data) => data.keys.toList());
+    final data = await _storage.readAll();
+    return data.keys.where((key) => !_reservedKeys.contains(key)).toList();
   }
 
   Future<Map<String, String>> getAllPasswords() async {
-    return await _storage.readAll();
+    final data = await _storage.readAll();
+    return Map.fromEntries(
+      data.entries.where((entry) => !_reservedKeys.contains(entry.key)),
+    );
   }
 
   // Email storage
@@ -84,5 +94,17 @@ class SecureStorageService {
 
   Future<void> clearPin() async {
     await _storage.delete(key: _pinKey);
+  }
+
+  // Encryption key storage
+  Future<void> saveEncryptionKey(String encodedKey) async {
+    await _storage.write(
+      key: encryptionKeyStorageKey,
+      value: encodedKey,
+    );
+  }
+
+  Future<String?> readEncryptionKey() async {
+    return _storage.read(key: encryptionKeyStorageKey);
   }
 }

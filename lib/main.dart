@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:pass_vault/views/index.dart';
-// import 'package:pass_vault/views/secure_overlay/app_security_wrapper.dart';
 
 import 'package:provider/provider.dart';
 
@@ -9,6 +7,7 @@ import 'services/index.dart';
 import 'viewmodels/index.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const PassVaultApp());
 }
 
@@ -32,8 +31,7 @@ class PassVaultApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         title: 'PassVault',
         theme: _buildTheme(),
-        home: const SensitiveContent(
-          sensitivity: ContentSensitivity.sensitive,
+        home: const AppSecurityWrapper(
           child: AuthScreen(),
         ),
       ),

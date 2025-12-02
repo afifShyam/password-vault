@@ -1,39 +1,98 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:pass_vault/utils/index.dart';
 import 'package:pass_vault/views/index.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'package:provider/provider.dart';
-
+import 'blocs/index.dart';
 import 'services/index.dart';
-import 'viewmodels/index.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  runApp(const PassVaultApp());
+
+  final env = const AppEnv();
+  SupabaseClient? supabaseClient;
+  SupabaseKeyRemote? keyRemote;
+
+  if (env.hasSupabaseConfig) {
+    try {
+      final supabase = await Supabase.initialize(
+        url: AppEnv.supabaseUrl,
+        anonKey: AppEnv.supabaseAnonKey,
+        authOptions: FlutterAuthClientOptions(authFlowType: AuthFlowType.pkce),
+      );
+      supabaseClient = supabase.client;
+      keyRemote = SupabaseKeyRemote(supabaseClient);
+
+      log('Supabase initialized with url: ${AppEnv.supabaseUrl}');
+      final userId = supabaseClient.auth.currentUser?.id;
+      log('Current Supabase user: ${userId ?? 'none'}');
+    } catch (e, st) {
+      log('Supabase init failed: $e', stackTrace: st);
+    }
+  } else {
+    log('Supabase config missing; skipping remote sync');
+  }
+
+  final secureStorageService = SecureStorageService();
+  final encryptionService = EncryptionService(
+    secureStorageService,
+    keyRemote: keyRemote,
+  );
+
+  runApp(
+    PassVaultApp(
+      authService: AuthService(),
+      secureStorageService: secureStorageService,
+      encryptionService: encryptionService,
+      supabaseVaultRemote: supabaseClient != null
+          ? SupabaseVaultRemote(
+              client: supabaseClient,
+              encryptionService: encryptionService,
+            )
+          : null,
+    ),
+  );
 }
 
 class PassVaultApp extends StatelessWidget {
-  const PassVaultApp({super.key});
+  const PassVaultApp({
+    super.key,
+    required this.authService,
+    required this.secureStorageService,
+    required this.encryptionService,
+    this.supabaseVaultRemote,
+  });
+
+  final AuthService authService;
+  final SecureStorageService secureStorageService;
+  final EncryptionService encryptionService;
+  final SupabaseVaultRemote? supabaseVaultRemote;
 
   @override
   Widget build(BuildContext context) {
-    final authService = AuthService();
-    final secureStorageService = SecureStorageService();
-
-    return MultiProvider(
+    return MultiBlocProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => AuthViewModel(authService)),
-        ChangeNotifierProvider(
-          create: (_) => VaultViewModel(secureStorageService),
+        BlocProvider(
+          create: (_) =>
+              AuthBloc(authService)..add(const AuthEvent.checkPinStatus()),
         ),
-        ChangeNotifierProvider(create: (_) => PortfolioViewModel()),
+        BlocProvider(
+          create: (_) => VaultBloc(
+            secureStorageService,
+            supabaseVaultRemote: supabaseVaultRemote,
+          ),
+        ),
+        BlocProvider(create: (_) => PortfolioBloc()),
+        BlocProvider(create: (_) => NavCubit()),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         title: 'PassVault',
         theme: _buildTheme(),
-        home: const AppSecurityWrapper(
-          child: AuthScreen(),
-        ),
+        home: const AppSecurityWrapper(child: AuthScreen()),
       ),
     );
   }
@@ -116,7 +175,7 @@ class PassVaultApp extends StatelessWidget {
         ),
       ),
       snackBarTheme: SnackBarThemeData(
-        behavior: SnackBarBehavior.floating,
+        behavior: SnackBarBehavior.fixed,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         backgroundColor: colorScheme.inverseSurface.withValues(alpha: 0.9),
         contentTextStyle: TextStyle(color: colorScheme.onInverseSurface),

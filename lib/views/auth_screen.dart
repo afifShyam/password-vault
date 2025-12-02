@@ -1,28 +1,51 @@
-import 'package:flutter/material.dart';
-import 'package:pass_vault/utils/index.dart';
-import 'package:pass_vault/viewmodels/index.dart';
-import 'package:pass_vault/views/index.dart';
+import 'dart:developer';
 
-import 'package:provider/provider.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:pass_vault/blocs/index.dart';
+import 'package:pass_vault/utils/index.dart';
+import 'package:pass_vault/views/index.dart';
 
 class AuthScreen extends StatelessWidget {
   const AuthScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final authViewModel = Provider.of<AuthViewModel>(context);
+    return BlocConsumer<AuthBloc, AuthState>(
+      listener: (context, authState) {
+        if (!authState.isSessionActive &&
+            authState.status == AuthStatus.authenticated) {
+          Navigator.of(
+            context,
+            rootNavigator: true,
+          ).popUntil((route) => route.isFirst);
+        }
+      },
+      builder: (context, authState) {
+        if (authState.isAuthed) {
+          return IdleWatcher(
+            onTimeout: () {
+              if (context.mounted) {
+                Navigator.of(
+                  context,
+                  rootNavigator: true,
+                ).popUntil((route) => route.isFirst);
+              }
+              context.read<AuthBloc>().add(const AuthEvent.endSession());
+            },
+            child: const VaultScreen(),
+          );
+        }
+
+        return _buildAuthScaffold(context, authState);
+      },
+    );
+  }
+
+  Widget _buildAuthScaffold(BuildContext context, AuthState authState) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
     final textTheme = theme.textTheme;
-
-    if (authViewModel.isAuthenticated) {
-      return IdleWatcher(
-        onTimeout: () {
-          authViewModel.reset();
-        },
-        child: const VaultScreen(),
-      );
-    }
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -89,7 +112,7 @@ class AuthScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          authViewModel.failedAttempts >= 5
+                          authState.failedAttempts >= 5
                               ? 'Too many failed attempts. Use your device security to continue.'
                               : 'Authenticate to unlock your encrypted vault.',
                           textAlign: TextAlign.center,
@@ -104,26 +127,28 @@ class AuthScreen extends StatelessWidget {
                             minimumSize: const Size.fromHeight(56),
                             textStyle: textTheme.titleMedium,
                           ),
-                          onPressed:
-                              authViewModel.failedAttempts >= 5
-                                  ? null
-                                  : authViewModel.authenticateWithBiometrics,
+                          onPressed: authState.failedAttempts >= 5
+                              ? null
+                              : () => context.read<AuthBloc>().add(
+                                  const AuthEvent.authenticateWithBiometrics(),
+                                ),
                           label: const Text('Unlock with biometrics'),
                         ),
                         const SizedBox(height: 16),
+
+                        // 🔹 Clean, BLoC-friendly branching
                         OutlinedButton.icon(
                           icon: const Icon(Icons.lock_outline, size: 24),
                           style: OutlinedButton.styleFrom(
                             minimumSize: const Size.fromHeight(56),
                             textStyle: textTheme.titleMedium,
                           ),
-                          onPressed: () async {
-                            final isPinSet = await authViewModel.isPinSet();
-                            if (!context.mounted) return;
-
-                            if (isPinSet) {
+                          onPressed: () {
+                            if (authState.isPinSet) {
+                              // PIN already set → show entry sheet
                               _showPinEntrySheet(context);
                             } else {
+                              // No PIN → go to setup
                               Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -134,33 +159,33 @@ class AuthScreen extends StatelessWidget {
                           },
                           label: const Text('Enter PIN instead'),
                         ),
+
                         const SizedBox(height: 20),
                         AnimatedOpacity(
-                          opacity: authViewModel.failedAttempts > 0 ? 1 : 0,
+                          opacity: authState.failedAttempts > 0 ? 1 : 0,
                           duration: const Duration(milliseconds: 200),
-                          child:
-                              authViewModel.failedAttempts > 0
-                                  ? Column(
-                                    children: [
-                                      Text(
-                                        'Failed attempts: ${authViewModel.failedAttempts}',
-                                        style: textTheme.bodyMedium?.copyWith(
-                                          color: colors.error,
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                          child: authState.failedAttempts > 0
+                              ? Column(
+                                  children: [
+                                    Text(
+                                      'Failed attempts: ${authState.failedAttempts}',
+                                      style: textTheme.bodyMedium?.copyWith(
+                                        color: colors.error,
+                                        fontWeight: FontWeight.w600,
                                       ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        'Five failed attempts will disable biometric unlock temporarily.',
-                                        textAlign: TextAlign.center,
-                                        style: textTheme.bodySmall?.copyWith(
-                                          color: colors.onSurfaceVariant
-                                              .withValues(alpha: 0.8),
-                                        ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Five failed attempts will disable biometric unlock temporarily.',
+                                      textAlign: TextAlign.center,
+                                      style: textTheme.bodySmall?.copyWith(
+                                        color: colors.onSurfaceVariant
+                                            .withValues(alpha: 0.8),
                                       ),
-                                    ],
-                                  )
-                                  : const SizedBox.shrink(),
+                                    ),
+                                  ],
+                                )
+                              : const SizedBox.shrink(),
                         ),
                       ],
                     ),

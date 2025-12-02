@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer';
 
 import 'package:flutter/material.dart';
 
@@ -14,7 +15,7 @@ class IdleWatcher extends StatefulWidget {
 
 class _IdleWatcherState extends State<IdleWatcher> with WidgetsBindingObserver {
   Timer? _inactivityTimer;
-  final Duration _timeoutDuration = const Duration(minutes: 2);
+  final Duration _timeoutDuration = const Duration(minutes: 1);
 
   void _resetTimer() {
     _inactivityTimer?.cancel();
@@ -24,9 +25,6 @@ class _IdleWatcherState extends State<IdleWatcher> with WidgetsBindingObserver {
   void _handleUserInteraction([_]) => _resetTimer();
 
   void _handleTimeout() {
-    if (!mounted) return;
-    final navigator = Navigator.of(context, rootNavigator: true);
-    navigator.popUntil((route) => route.isFirst);
     widget.onTimeout();
   }
 

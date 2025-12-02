@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:developer';
+
 import 'package:cryptography/cryptography.dart';
 
 import 'secure_storage_service.dart';
+import 'supabase_key_remote.dart';
 
 /// A secure AES-256-GCM encryption/decryption service.
 ///
@@ -21,10 +24,15 @@ import 'secure_storage_service.dart';
 ///   }
 ///
 class EncryptionService {
-  EncryptionService(this._storageService) : _cipher = AesGcm.with256bits();
+  EncryptionService(
+    this._storageService, {
+    SupabaseKeyRemote? keyRemote,
+  })  : _cipher = AesGcm.with256bits(),
+        _keyRemote = keyRemote;
 
   final SecureStorageService _storageService;
   final AesGcm _cipher;
+  final SupabaseKeyRemote? _keyRemote;
 
   // Payload version: increment if you change formats/algorithms in future
   static const int _version = 1;
@@ -90,10 +98,22 @@ class EncryptionService {
       return SecretKey(base64Decode(stored));
     }
 
+    final fetched = await _keyRemote?.fetchKey();
+    if (fetched != null && fetched.isNotEmpty) {
+      await _storageService.saveEncryptionKey(fetched);
+      return SecretKey(base64Decode(fetched));
+    }
+
     final newKey = await _cipher.newSecretKey();
     final keyBytes = await newKey.extractBytes();
+    final encoded = base64Encode(keyBytes);
 
-    await _storageService.saveEncryptionKey(base64Encode(keyBytes));
+    await _storageService.saveEncryptionKey(encoded);
+    try {
+      await _keyRemote?.saveKey(encoded);
+    } catch (e) {
+      log('Remote key save failed: $e');
+    }
     return newKey;
   }
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:pass_vault/viewmodels/index.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:pass_vault/blocs/index.dart';
 
 class PinSetupScreen extends StatefulWidget {
   const PinSetupScreen({super.key});
@@ -14,8 +14,8 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
   final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
   final ValueNotifier<String> _pinNotifier = ValueNotifier<String>('');
-  String? _firstEntry;
-  bool _obscureText = true;
+  final ValueNotifier<String?> _firstEntryNotifier = ValueNotifier<String?>(null);
+  final ValueNotifier<bool> _obscureNotifier = ValueNotifier<bool>(true);
 
   @override
   void initState() {
@@ -34,19 +34,19 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
     _controller.dispose();
     _focusNode.dispose();
     _pinNotifier.dispose();
+    _firstEntryNotifier.dispose();
+    _obscureNotifier.dispose();
     super.dispose();
   }
 
   void _handlePinEntry(String pin) async {
-    if (_firstEntry == null) {
-      setState(() {
-        _firstEntry = pin;
-        _controller.clear();
-      });
+    final firstEntry = _firstEntryNotifier.value;
+    if (firstEntry == null) {
+      _firstEntryNotifier.value = pin;
+      _controller.clear();
     } else {
-      if (_firstEntry == pin) {
-        final viewModel = Provider.of<AuthViewModel>(context, listen: false);
-        await viewModel.setNewPin(pin);
+      if (firstEntry == pin) {
+        context.read<AuthBloc>().add(AuthEvent.setPin(pin));
 
         if (mounted) {
           Navigator.pop(context, true);
@@ -58,10 +58,8 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
           );
         }
       } else {
-        setState(() {
-          _firstEntry = null;
-          _controller.clear();
-        });
+        _firstEntryNotifier.value = null;
+        _controller.clear();
 
         _showCustomSnackBar(
           context,
@@ -78,7 +76,7 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
     String displayChar = '';
 
     if (filled) {
-      displayChar = _obscureText ? '●' : pin[index];
+      displayChar = _obscureNotifier.value ? '●' : pin[index];
     }
 
     return AnimatedSwitcher(
@@ -141,9 +139,6 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final promptText =
-        _firstEntry == null ? 'Set a new 6-digit PIN' : 'Confirm your PIN';
-
     return GestureDetector(
       onTap: () => _focusNode.requestFocus(),
       child: Scaffold(
@@ -157,10 +152,18 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
           child: Column(
             children: [
               const SizedBox(height: 20),
-              Text(
-                promptText,
-                style: Theme.of(context).textTheme.titleMedium,
-                textAlign: TextAlign.center,
+              ValueListenableBuilder<String?>(
+                valueListenable: _firstEntryNotifier,
+                builder: (context, firstEntry, _) {
+                  final promptText = firstEntry == null
+                      ? 'Set a new 6-digit PIN'
+                      : 'Confirm your PIN';
+                  return Text(
+                    promptText,
+                    style: Theme.of(context).textTheme.titleMedium,
+                    textAlign: TextAlign.center,
+                  );
+                },
               ),
               const SizedBox(height: 40),
 
@@ -176,33 +179,43 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
                       ValueListenableBuilder<String>(
                         valueListenable: _pinNotifier,
                         builder: (context, pin, _) {
-                          return Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: List.generate(
-                              6,
-                              (i) => _buildPinBox(i, pin),
-                            ),
+                          return ValueListenableBuilder<bool>(
+                            valueListenable: _obscureNotifier,
+                            builder: (context, _, __) {
+                              return Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: List.generate(
+                                  6,
+                                  (i) => _buildPinBox(i, pin),
+                                ),
+                              );
+                            },
                           );
                         },
                       ),
                       Opacity(
                         opacity: 0.0,
-                        child: TextField(
-                          controller: _controller,
-                          focusNode: _focusNode,
-                          keyboardType: TextInputType.number,
-                          obscureText: _obscureText,
-                          maxLength: 6,
-                          inputFormatters: [
-                            FilteringTextInputFormatter.digitsOnly,
-                          ],
-                          decoration: const InputDecoration(
-                            counterText: '',
-                            border: InputBorder.none,
-                          ),
-                          style: const TextStyle(color: Colors.transparent),
-                          cursorColor: Colors.transparent,
-                          showCursor: false,
+                        child: ValueListenableBuilder<bool>(
+                          valueListenable: _obscureNotifier,
+                          builder: (context, obscure, __) {
+                            return TextField(
+                              controller: _controller,
+                              focusNode: _focusNode,
+                              keyboardType: TextInputType.number,
+                              obscureText: obscure,
+                              maxLength: 6,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              decoration: const InputDecoration(
+                                counterText: '',
+                                border: InputBorder.none,
+                              ),
+                              style: const TextStyle(color: Colors.transparent),
+                              cursorColor: Colors.transparent,
+                              showCursor: false,
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -212,14 +225,19 @@ class _PinSetupScreenState extends State<PinSetupScreen> {
 
               // Show/Hide toggle
               const SizedBox(height: 16),
-              TextButton.icon(
-                onPressed: () {
-                  setState(() => _obscureText = !_obscureText);
+              ValueListenableBuilder<bool>(
+                valueListenable: _obscureNotifier,
+                builder: (context, obscure, _) {
+                  return TextButton.icon(
+                    onPressed: () {
+                      _obscureNotifier.value = !obscure;
+                    },
+                    icon: Icon(
+                      obscure ? Icons.visibility : Icons.visibility_off,
+                    ),
+                    label: Text(obscure ? 'Show PIN' : 'Hide PIN'),
+                  );
                 },
-                icon: Icon(
-                  _obscureText ? Icons.visibility : Icons.visibility_off,
-                ),
-                label: Text(_obscureText ? 'Show PIN' : 'Hide PIN'),
               ),
             ],
           ),

@@ -1,73 +1,97 @@
-# 🔐 PassVault — Secure Password Manager App
+# PassVault
 
-PassVault is a private-by-design password vault that keeps your logins encrypted on-device, lets you back them up safely to the cloud, and restores them when you reinstall—without exposing your secrets. Built with Flutter for a fast, native feel.
+PassVault is a Flutter password manager with local secure storage, biometric/PIN unlock, and optional encrypted cloud sync through Supabase.
 
----
+## Features
 
-## ✨ Highlights
+- Local-first vault storage using `flutter_secure_storage` (Android encrypted shared prefs + iOS keychain).
+- Unlock with biometrics or a 6-digit app PIN.
+- Session auto-lock after 1 minute of inactivity.
+- Privacy blur overlay when the app goes to background.
+- Vault CRUD: add, edit, delete, search, preview, copy password.
+- Password visibility control per entry and global hide-on-lifecycle events.
+- Optional cloud sync with Supabase (`vault_entries`) where payloads are encrypted with AES-256-GCM before upload.
+- Built-in portfolio tab rendered with `webview_flutter`.
 
-- 🔒 End-to-end mindset: secure storage + app-level encryption for cloud backups
-- 👆 Biometrics / PIN with idle auto-lock that closes lingering dialogs
-- 🔍 Live search with responsive two-column vault cards and quick actions
-- 🧭 Easy recoverability: encrypted export/import so you can reinstall without losing data
-- ♻️ Email suggestions & dedupe when adding new entries
-- 🧱 Modular widgets (`VaultEntryCard`, `VaultSearchBar`, `VaultEmptyState`) for clean architecture
-- 📦 Provider-based state management and immutable state via `freezed`
+## Stack
 
----
+- Flutter + Material 3
+- `flutter_bloc` + `freezed`
+- `flutter_secure_storage`
+- `local_auth`
+- `cryptography` (AES-GCM)
+- `supabase_flutter`
+- `webview_flutter`
 
-## ⚙️ Tech Stack
+## App Architecture
 
-- **Flutter** – UI framework
-- **Provider** + `ChangeNotifier` – state management
-- **Freezed / json_serializable** – immutable state & model generation
-- **UUID** – unique entry IDs
-- **flutter_secure_storage** – encrypted secrets
-- **cryptography** – AES-GCM encryption for backup/restore payloads
-- **webview_flutter** – portfolio tab
+State management is BLoC-based:
 
----
+- `AuthBloc`: biometric/PIN auth, PIN setup/reset, session state.
+- `VaultBloc`: local vault storage, filtering, visibility toggling, remote merge/sync.
+- `PortfolioBloc`: webview lifecycle, loading/error/progress, navigation state.
+- `NavCubit`: tab and floating navbar state.
 
-## 🏗️ Architecture Overview
+Core services:
 
-- `VaultState` – immutable snapshot of vault data, search query, and status
-- `VaultViewModel` – orchestrates storage reads/writes, filtering, visibility toggles
-- `PortfolioViewModel` – manages WebView lifecycle & error state
-- `SecureStorageService` – platform-aware secure storage abstraction
-- Presentation layer composes reusable widgets, keeping views slim and testable
+- `SecureStorageService`: passwords, PIN, saved emails, encryption key.
+- `EncryptionService`: AES-256-GCM encrypt/decrypt for remote payloads.
+- `SupabaseVaultRemote`: encrypted read/write/delete for `vault_entries`.
+- `SupabaseKeyRemote`: reads/saves encoded key in `vault_keys`.
 
----
+## Supabase (Optional)
 
-## 🚀 Getting Started
+Supabase initialization is optional at runtime. If config is missing, the app still runs in local-only mode.
+
+Set runtime values with `--dart-define`:
+
+```bash
+flutter run \
+  --dart-define=SUPABASE_URL=https://your-project.supabase.co \
+  --dart-define=SUPABASE_ANON_KEY=your-anon-key
+```
+
+Expected remote tables:
+
+- `vault_entries`: stores encrypted `payload`, plus `entry_key`, `title`, `email`, `updated_at`, and optional `user_id`.
+- `vault_keys`: stores `id`, `encoded_key`, `updated_at`.
+
+## Getting Started
 
 ```bash
 flutter pub get
-flutter pub run build_runner build --delete-conflicting-outputs
 flutter run
 ```
 
----
+When editing Freezed/JSON models or events/states:
 
-## 🔒 Hardening / Obfuscation
+```bash
+dart run build_runner build --delete-conflicting-outputs
+```
 
-- Android release builds use R8/ProGuard shrinking + obfuscation (`android/app/build.gradle.kts`).
-- Build obfuscated Dart code with split debug info to keep stack traces readable:
+## Android Release Hardening
+
+`android/app/build.gradle.kts` already enables:
+
+- R8 code shrinking (`isMinifyEnabled = true`)
+- Resource shrinking (`isShrinkResources = true`)
+- ProGuard rules (`proguard-rules.pro`)
+
+You can additionally obfuscate Dart symbols:
 
 ```bash
 flutter build appbundle --release --obfuscate --split-debug-info=build/debug-info
 ```
 
-Store the `build/debug-info` directory securely so you can de-obfuscate crash reports.
+## Quality Checks
 
----
+```bash
+dart format .
+dart analyze
+flutter test
+```
 
-## 🧪 Recommended Commands
+## Notes
 
-- `flutter analyze`
-- `flutter test`
-
----
-
-## 📄 License
-
-MIT © Shyam
+- The default widget test (`test/widget_test.dart`) is still Flutter template-style and does not reflect current app behavior.
+- Replace any default Supabase credentials in your own deployments.
